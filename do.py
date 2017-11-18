@@ -1,12 +1,8 @@
-
-
-
-
-
+import sys
+import re
 import os
-
+import random
 from shutil import copyfile
-
 
 
 def make_out_filename(out_dir, source_filename, card_type, card_id,
@@ -84,4 +80,53 @@ def format_flash_card_files(source_dir, out_dir, next_card_id, dry_run=True):
                         source_file_path,
                         outfilename_answer) 
 
+
+def get_all_files(sourcedir):
+    badfile = '.DS_Store'
+    all_files = os.listdir(sourcedir)
+
+    if badfile in all_files:
+        all_files.pop(all_files.index(badfile))
+    return all_files
+
+
+def only_question_files(all_files):
+    question_files = [filename for filename in all_files
+            if re.match(r'\d{2,}-(\d)-', filename).groups()[0] == '0']
+    return question_files
+
+
+def sample(thelist, n):
+    return [thelist[i] for i in sorted(random.sample(xrange(len(thelist)), n))]
+
+
+def select_random_question_cards(source_dir, how_many):
+    all_files = get_all_files(source_dir)
+    question_files = only_question_files(all_files)
+
+    # Random sample.
+    sampled_question_files = sample(question_files, how_many)
+    return sampled_question_files
+
+
+def write_attempt(outfile, myanswer):
+    outpath = os.path.join(os.getenv('FLASHCARDS_ATTEMPTS_DIR'), outfile)
+    with open(outpath, 'w') as fd:
+        fd.write(myanswer)
+
+
+def exam(time_limit, num_questions):
+    sourcedir = os.getenv('FLASHCARDS_DIR')
+    attemptsdir = os.getenv('FLASHCARDS_ATTEMPTS_DIR')
+
+    print sourcedir, attemptsdir, (time_limit, num_questions)
+
+
+if __name__ == '__main__':
+    if len(sys.argv) != 3:
+        print 'do.py <time limit> <num questions>'
+        sys.exit()
+
+    time_limit, num_questions = sys.argv[1:3]
+    exam(time_limit, num_questions)
 
