@@ -1,8 +1,12 @@
 import sys
+import time
 import re
 import os
 import random
+import datetime
 from shutil import copyfile
+
+from __future__ import division
 
 
 def make_out_filename(out_dir, source_filename, card_type, card_id,
@@ -22,6 +26,11 @@ def make_out_filename(out_dir, source_filename, card_type, card_id,
 
 def make_card_id(number, char_num):
     return str(number).zfill(char_num)
+
+
+def make_session_id():
+    now = datetime.datetime.now()
+    return now.strftime('%Y-%m-%dT%H%M')
 
 
 def format_flash_card_files(source_dir, out_dir, next_card_id, dry_run=True):
@@ -115,11 +124,43 @@ def write_attempt(outfile, myanswer):
         fd.write(myanswer)
 
 
+def get_question(question_filename):
+    path = os.path.join(os.getenv('FLASHCARDS_DIR'))
+    with open(path) as fd:
+        content = fd.read()
+
+    return content
+
+
+def store_answer(session_id, question_id, answer):
+    attemptsdir = os.getenv('FLASHCARDS_ATTEMPTS_DIR')
+    path = os.path.join(attemptsdir, session_id, question_id + '.txt')
+    with open(path, 'w') as fd:
+        fd.write(answer)
+
+
 def exam(time_limit, num_questions):
     sourcedir = os.getenv('FLASHCARDS_DIR')
     attemptsdir = os.getenv('FLASHCARDS_ATTEMPTS_DIR')
 
+    time_per_question = time_limit * 60/ num_questions
+    print '[{} seconds per question.]'.format(time_per_question)
+
     print sourcedir, attemptsdir, (time_limit, num_questions)
+
+    sampled_question_filenames = select_random_question_cards(
+            sourcedir, num_questions)
+
+
+    session_id = make_session_id()
+
+    for i, question_filename in enumerate(sampled_question_filenames):
+        question_id = question_filename.split('.')[0]
+        question = get_question(question_filename)
+        print 'question ', i, question
+        myanswer = raw_input('> ')
+
+        store_answer(session_id, question_id, myanswer)
 
 
 if __name__ == '__main__':
