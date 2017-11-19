@@ -1,3 +1,5 @@
+from __future__ import division
+
 import sys
 import time
 import re
@@ -6,7 +8,6 @@ import random
 import datetime
 from shutil import copyfile
 
-from __future__ import division
 
 
 def make_out_filename(out_dir, source_filename, card_type, card_id,
@@ -30,7 +31,14 @@ def make_card_id(number, char_num):
 
 def make_session_id():
     now = datetime.datetime.now()
-    return now.strftime('%Y-%m-%dT%H%M')
+    session_id = now.strftime('%Y-%m-%dT%H%M')
+
+    # Make new session dir.
+    attemptsdir = os.getenv('FLASHCARDS_ATTEMPTS_DIR')
+    path = os.path.join(attemptsdir, session_id)
+    os.mkdir(path)
+
+    return session_id
 
 
 def format_flash_card_files(source_dir, out_dir, next_card_id, dry_run=True):
@@ -99,9 +107,16 @@ def get_all_files(sourcedir):
     return all_files
 
 
+def question_match(filename):
+    try:
+        return re.match(r'\d{2,}-(\d)-.*txt', filename).groups()[0] == '0'
+    except AttributeError:
+        return False
+
+
 def only_question_files(all_files):
     question_files = [filename for filename in all_files
-            if re.match(r'\d{2,}-(\d)-', filename).groups()[0] == '0']
+            if question_match(filename)]
     return question_files
 
 
@@ -125,7 +140,7 @@ def write_attempt(outfile, myanswer):
 
 
 def get_question(question_filename):
-    path = os.path.join(os.getenv('FLASHCARDS_DIR'))
+    path = os.path.join(os.getenv('FLASHCARDS_DIR'), question_filename)
     with open(path) as fd:
         content = fd.read()
 
@@ -151,7 +166,6 @@ def exam(time_limit, num_questions):
     sampled_question_filenames = select_random_question_cards(
             sourcedir, num_questions)
 
-
     session_id = make_session_id()
 
     for i, question_filename in enumerate(sampled_question_filenames):
@@ -168,6 +182,6 @@ if __name__ == '__main__':
         print 'do.py <time limit> <num questions>'
         sys.exit()
 
-    time_limit, num_questions = sys.argv[1:3]
+    time_limit, num_questions = int(sys.argv[1]), int(sys.argv[2])
     exam(time_limit, num_questions)
 
