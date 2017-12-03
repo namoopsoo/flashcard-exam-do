@@ -7,7 +7,16 @@ import os
 import random
 import datetime
 from shutil import copyfile
+import csv
 
+from contextlib import contextmanager
+
+@contextmanager
+def clock_this():
+    d = {'start': datetime.datetime.now()}
+    yield d
+    d['end'] = datetime.datetime.now()
+    d['seconds'] = (d['end'] - d['start']).seconds
 
 
 def make_out_filename(out_dir, source_filename, card_type, card_id,
@@ -147,11 +156,61 @@ def get_question(question_filename):
     return content
 
 
-def store_answer(session_id, question_id, answer):
+def filename_in_attempts_dir(session_id, filename):
     attemptsdir = os.getenv('FLASHCARDS_ATTEMPTS_DIR')
-    path = os.path.join(attemptsdir, session_id, question_id + '.txt')
+    path = os.path.join(attemptsdir, session_id, filename)
+    return path
+
+
+def store_answer(session_id, question_id, answer):
+    path = filename_in_attempts_dir(
+            session_id,
+            question_id + '.txt')
     with open(path, 'w') as fd:
         fd.write(answer)
+
+
+def collect_answer():
+    answer = raw_input('> ')
+    fullanswer = ''
+    while answer != '--':
+        fullanswer += answer + '\n'
+        answer = raw_input()
+    return fullanswer
+
+
+def write_csv(path, table):
+    with open(path, 'wb') as csvfile:
+        spamwriter = csv.writer(csvfile,
+                                quotechar=',',
+                                quoting=csv.QUOTE_MINIMAL)
+        spamwriter.writerows(table)
+
+
+def test_write_csv():
+    rows = [
+            [
+                'session_id', 'question_id', 'time_taken', 'points', 'explanation'],
+            ['2017-11-26T1124','043-0-Chi-Squared_For_Feature_Selection','0:00','0',''],
+            ['2017-11-26T1124','044-0-Chi-Squared','0:00','0',''],
+            ['2017-11-26T1124','072-0-Dropout','0:00','0',''],
+            ['2017-11-26T1124','085-0-Extrema','0:00','0',''],
+            ['2017-11-26T1124','238-0-ReLU_Activation_Function','0:00','0',''],
+            ]
+    write_csv('blah.csv', rows)
+
+
+def make_scores_file(session_id, sampled_question_filenames, times):
+    path = filename_in_attempts_dir(
+            session_id,
+            'scores.csv')
+
+    columns = [
+            'session_id', 'question_id', 'time_taken', 'points', 'explanation']
+    rows = [
+            [session_id, q.split('.')[0], times[i], '', '']
+            for i, q in enumerate(sampled_question_filenames)]
+    write_csv(path, [columns] + rows)
 
 
 def exam(time_limit, num_questions):
@@ -167,15 +226,23 @@ def exam(time_limit, num_questions):
             sourcedir, num_questions)
 
     session_id = make_session_id()
+    times = []
 
     for i, question_filename in enumerate(sampled_question_filenames):
         question_id = question_filename.split('.')[0]
         question = get_question(question_filename)
         print 'question ', i, question
-        myanswer = raw_input('> ')
+
+        with clock_this() as time_dict:
+            myanswer = collect_answer()
+        times.append(time_dict['seconds'])
 
         store_answer(session_id, question_id, myanswer)
 
+    make_scores_file(session_id, sampled_question_filenames, times)
+    print 'wrote responses in ', filename_in_attempts_dir(
+            session_id,
+            '')
 
 if __name__ == '__main__':
     if len(sys.argv) != 3:
