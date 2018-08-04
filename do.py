@@ -1,3 +1,4 @@
+#!/usr/local/miniconda3/envs/flashcard/bin/python
 from __future__ import division
 
 import sys
@@ -8,8 +9,43 @@ import random
 import datetime
 from shutil import copyfile
 import csv
+import yaml
 
 from contextlib import contextmanager
+
+FLASHCARDS_ATTEMPTS_DIR = None
+FLASHCARDS_DIR = None
+TIME_LIMIT = None
+NUM_QUESTIONS = None
+
+def set_variables(time_limit, num_questions):
+    global FLASHCARDS_ATTEMPTS_DIR
+    global FLASHCARDS_DIR
+    global TIME_LIMIT
+    global NUM_QUESTIONS
+
+    user_profile_file = os.path.join(os.getenv('HOME', ''),
+            '.flashcardexam.conf')
+    profile = read_user_profile(user_profile_file)
+
+    for var in ['FLASHCARDS_ATTEMPTS_DIR',
+            'FLASHCARDS_DIR', 'TIME_LIMIT', 'NUM_QUESTIONS']:
+        globals()[var] = (locals().get(var.lower())
+                or os.getenv(var)
+                or profile.get(var)
+                or sys.exit(['Undefined variable {}'.format(var)]))
+
+    NUM_QUESTIONS = int(NUM_QUESTIONS)
+    TIME_LIMIT = int(TIME_LIMIT)
+    assert isinstance(TIME_LIMIT, int)
+
+    pass
+
+def read_user_profile(user_profile_file):
+    with open(user_profile_file) as fd:
+        profile = yaml.load(fd)
+        return profile
+
 
 @contextmanager
 def clock_this():
@@ -43,7 +79,7 @@ def make_session_id():
     session_id = now.strftime('%Y-%m-%dT%H%M')
 
     # Make new session dir.
-    attemptsdir = os.getenv('FLASHCARDS_ATTEMPTS_DIR')
+    attemptsdir = FLASHCARDS_ATTEMPTS_DIR
     path = os.path.join(attemptsdir, session_id)
     os.mkdir(path)
 
@@ -143,13 +179,13 @@ def select_random_question_cards(source_dir, how_many):
 
 
 def write_attempt(outfile, myanswer):
-    outpath = os.path.join(os.getenv('FLASHCARDS_ATTEMPTS_DIR'), outfile)
+    outpath = os.path.join(FLASHCARDS_ATTEMPTS_DIR, outfile)
     with open(outpath, 'w') as fd:
         fd.write(myanswer)
 
 
 def get_question(question_filename):
-    path = os.path.join(os.getenv('FLASHCARDS_DIR'), question_filename)
+    path = os.path.join(FLASHCARDS_DIR, question_filename)
     with open(path) as fd:
         content = fd.read()
 
@@ -157,7 +193,7 @@ def get_question(question_filename):
 
 
 def filename_in_attempts_dir(session_id, filename):
-    attemptsdir = os.getenv('FLASHCARDS_ATTEMPTS_DIR')
+    attemptsdir = FLASHCARDS_ATTEMPTS_DIR
     path = os.path.join(attemptsdir, session_id, filename)
     return path
 
@@ -214,8 +250,8 @@ def make_scores_file(session_id, sampled_question_filenames, times):
 
 
 def exam(time_limit, num_questions):
-    sourcedir = os.getenv('FLASHCARDS_DIR')
-    attemptsdir = os.getenv('FLASHCARDS_ATTEMPTS_DIR')
+    sourcedir = FLASHCARDS_DIR
+    attemptsdir = FLASHCARDS_ATTEMPTS_DIR
 
     time_per_question = time_limit * 60/ num_questions
     print '[{} seconds per question.]'.format(time_per_question)
@@ -244,11 +280,13 @@ def exam(time_limit, num_questions):
             session_id,
             '')
 
-if __name__ == '__main__':
-    if len(sys.argv) != 3:
-        print 'do.py <time limit> <num questions>'
-        sys.exit()
 
-    time_limit, num_questions = int(sys.argv[1]), int(sys.argv[2])
-    exam(time_limit, num_questions)
+if __name__ == '__main__':
+    time_limit, num_questions = None, None
+    if len(sys.argv) == 3:
+        time_limit, num_questions = int(sys.argv[1]), int(sys.argv[2])
+
+    set_variables(time_limit, num_questions)
+
+    exam(TIME_LIMIT, NUM_QUESTIONS)
 
